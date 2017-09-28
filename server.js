@@ -2,12 +2,20 @@ var express = require('express');
 var morgan = require('morgan');
 var mongoose = require('mongoose');
 var bodyParser = require('body-parser');
+var ejs = require('ejs');
+var engine = require('ejs-mate');
+var session = require('express-session');
+var cookieParser = require('cookie-parser');
+var flash = require('express-flash');
+var MongoStore = require('connect-mongo/es5')(session);
+var passport = require('passport');
 
+var secret = require('./config/secret');
 var User = require('./models/user');
 
 var app = express();
 
-mongoose.connect('mongodb://root:123@ds117830.mlab.com:17830/onepiece',function(err) {
+mongoose.connect(secret.database,function(err) {
 
 	if(err) {
 		console.log(err);
@@ -17,26 +25,33 @@ mongoose.connect('mongodb://root:123@ds117830.mlab.com:17830/onepiece',function(
 });
 
 //Middleware
+app.use(express.static(__dirname +'/public'));
 app.use(morgan('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true}));
+app.use(cookieParser());
+app.use(session({
 
-app.post('/create-user',function(req, res, next) {
-	var user = new User();
+	resave: true,
+	saveUninitialized: true,
+	secret: secret.secretKey,
+	store: new MongoStore({url: secret.database , autoReconnect: true})
+}));
+app.use(flash());
+app.use(passport.initialize());
+app.use(passport.session());
+app.engine('ejs', engine);
+app.set('view engine','ejs');
 
-	user.profile.name = req.body.name;
-	user.password = req.body.password;
-	user.email = req.body.email;
+var mainRoutes = require('./routes/main');
+var userRoutes = require('./routes/user');
 
-	user.save(function(err) {
-		if(err) next(err);
+app.use(mainRoutes);
+app.use(userRoutes);
 
-		res.json("Succesfully created a new user.");
-	});
-});
 
-app.listen(3000,function(err) {
+app.listen(secret.port,function(err) {
 
 	if(err) throw err;
-	console.log("Server is running on port no 3000");
+	console.log("Server is running on port no "+secret.port);
 });
